@@ -22,11 +22,21 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+          hover: "hsl(var(--secondary-hover))",
         },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        danger: "hsl(var(--danger))",
+        info: "hsl(var(--info))",
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
@@ -34,10 +44,6 @@ export default {
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -47,16 +53,23 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
-        },
+      },
+      backgroundImage: {
+        'gradient-primary': 'var(--gradient-primary)',
+        'gradient-secondary': 'var(--gradient-secondary)',
+        'gradient-hero': 'var(--gradient-hero)',
+        'gradient-success': 'var(--gradient-success)',
+        'gradient-warning': 'var(--gradient-warning)',
+      },
+      boxShadow: {
+        'sm': 'var(--shadow-sm)',
+        'md': 'var(--shadow-md)',
+        'lg': 'var(--shadow-lg)',
+        'elevated': 'var(--shadow-elevated)',
+      },
+      transitionTimingFunction: {
+        'smooth': 'var(--transition-smooth)',
+        'bounce': 'var(--transition-bounce)',
       },
       borderRadius: {
         lg: "var(--radius)",
