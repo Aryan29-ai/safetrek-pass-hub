@@ -1,1 +1,16 @@
 project_id = "hmsvhpxqqbkgccltepgm"
+
+[functions.location-search]
+verify_jwt = false
+
+[functions.get-weather]
+verify_jwt = false
+
+[functions.get-directions]
+verify_jwt = false
+
+[functions.nearby-services]
+verify_jwt = false
+
+[functions.get-incidents]
+verify_jwt = false

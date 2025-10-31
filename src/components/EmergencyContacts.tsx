@@ -12,9 +12,10 @@ interface EmergencyService {
 
 interface EmergencyContactsProps {
   services: EmergencyService[];
+  onSOS?: () => void;
 }
 
-const EmergencyContacts = ({ services }: EmergencyContactsProps) => {
+const EmergencyContacts = ({ services, onSOS }: EmergencyContactsProps) => {
   const getServiceIcon = (type: string) => {
     switch(type) {
       case "police": return <Shield className="w-5 h-5" />;
@@ -43,36 +44,48 @@ const EmergencyContacts = ({ services }: EmergencyContactsProps) => {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* SOS Button */}
-        <Button variant="danger" className="w-full text-lg py-6 shadow-lg">
-          <Phone className="w-6 h-6 mr-2" />
-          SOS Emergency
-        </Button>
+        {onSOS && (
+          <Button 
+            variant="danger" 
+            className="w-full text-lg py-6 shadow-lg"
+            onClick={onSOS}
+          >
+            <Phone className="w-6 h-6 mr-2" />
+            SOS Emergency
+          </Button>
+        )}
 
         {/* Emergency Services List */}
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">Nearby Services</p>
-          {services.map((service) => (
-            <div 
-              key={service.id}
-              className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className={getServiceColor(service.type)}>
-                  {getServiceIcon(service.type)}
+          {services.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">Loading services...</p>
+          ) : (
+            services.map((service) => (
+              <div 
+                key={service.id}
+                className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={getServiceColor(service.type)}>
+                    {getServiceIcon(service.type)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{service.name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {service.distance} away
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-sm">{service.name}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {service.distance} away
-                  </p>
-                </div>
+                <a href={`tel:${service.phone}`}>
+                  <Button variant="outline" size="sm">
+                    <Phone className="w-4 h-4" />
+                  </Button>
+                </a>
               </div>
-              <Button variant="outline" size="sm">
-                <Phone className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </CardContent>
     </Card>

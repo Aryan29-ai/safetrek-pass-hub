@@ -7,8 +7,11 @@ import LocationSearch from "@/components/LocationSearch";
 import TouristAttractionCard from "@/components/TouristAttractionCard";
 import IncidentAlert from "@/components/IncidentAlert";
 import EmergencyContacts from "@/components/EmergencyContacts";
+import LocationDetailModal from "@/components/LocationDetailModal";
 import { LogOut, Menu } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
 
 // Import attraction images
 import manaliImg from "@/assets/manali.jpg";
@@ -20,6 +23,15 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<any>(null);
+  const [placeWeather, setPlaceWeather] = useState<any>(null);
+  const [placeIncidents, setPlaceIncidents] = useState<any[]>([]);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearbyServices, setNearbyServices] = useState<any[]>([]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -28,7 +40,63 @@ const Dashboard = () => {
       return;
     }
     setUser(JSON.parse(userData));
+
+    // Get user's current location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setUserLocation(coords);
+          fetchWeather(coords);
+          fetchNearbyServices(coords);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          toast.error("Could not get your location");
+          // Default to Mumbai
+          fetchWeather(null, "Mumbai");
+        }
+      );
+    }
   }, [navigate]);
+
+  const fetchWeather = async (coords: { lat: number; lng: number } | null, city?: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-weather', {
+        body: coords ? { lat: coords.lat, lng: coords.lng } : { city },
+      });
+
+      if (error) throw error;
+      setWeatherData(data);
+    } catch (error) {
+      console.error('Error fetching weather:', error);
+      toast.error('Failed to load weather data');
+    }
+  };
+
+  const fetchNearbyServices = async (coords: { lat: number; lng: number }) => {
+    try {
+      const types = ['police', 'hospital', 'fire'];
+      const allServices = [];
+
+      for (const type of types) {
+        const { data, error } = await supabase.functions.invoke('nearby-services', {
+          body: { lat: coords.lat, lng: coords.lng, type },
+        });
+
+        if (!error && data?.services) {
+          allServices.push(...data.services.slice(0, 1).map((s: any) => ({ ...s, type })));
+        }
+      }
+
+      setNearbyServices(allServices);
+    } catch (error) {
+      console.error('Error fetching nearby services:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -36,128 +104,174 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  const handleSearch = (location: string) => {
+  const handleSearch = async (location: string) => {
     setSelectedLocation(location);
-    toast.success(`Searching for ${location}...`);
+    toast.loading('Searching...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('location-search', {
+        body: { query: location, location },
+      });
+
+      if (error) throw error;
+
+      setSearchResults(data.places || []);
+      
+      // Fetch incidents for this location
+      const { data: incidentData } = await supabase.functions.invoke('get-incidents', {
+        body: { location },
+      });
+      
+      if (incidentData?.incidents) {
+        setIncidents(incidentData.incidents);
+      }
+
+      toast.success(`Found ${data.places?.length || 0} attractions`);
+    } catch (error) {
+      console.error('Error searching:', error);
+      toast.error('Failed to search locations');
+    }
+  };
+
+  const handlePlaceClick = async (place: any) => {
+    setSelectedPlace(place);
+    setIsDetailModalOpen(true);
+
+    // Fetch weather for this place
+    try {
+      const { data: weatherData } = await supabase.functions.invoke('get-weather', {
+        body: { lat: place.coordinates.lat, lng: place.coordinates.lng },
+      });
+      setPlaceWeather(weatherData);
+    } catch (error) {
+      console.error('Error fetching place weather:', error);
+    }
+
+    // Fetch incidents for this place
+    try {
+      const { data: incidentData } = await supabase.functions.invoke('get-incidents', {
+        body: { location: place.location },
+      });
+      setPlaceIncidents(incidentData?.incidents || []);
+    } catch (error) {
+      console.error('Error fetching place incidents:', error);
+    }
+  };
+
+  const handleGetDirections = async () => {
+    if (!userLocation || !selectedPlace) {
+      toast.error('Location not available');
+      return;
+    }
+
+    try {
+      const origin = `${userLocation.lat},${userLocation.lng}`;
+      const destination = `${selectedPlace.coordinates.lat},${selectedPlace.coordinates.lng}`;
+
+      const { data, error } = await supabase.functions.invoke('get-directions', {
+        body: { origin, destination },
+      });
+
+      if (error) throw error;
+
+      const bestRoute = data.routes[0];
+      toast.success(`Best route: ${bestRoute.summary} - ${bestRoute.distance}, ${bestRoute.duration}`);
+      
+      // Open in Google Maps
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+      window.open(mapsUrl, '_blank');
+    } catch (error) {
+      console.error('Error getting directions:', error);
+      toast.error('Failed to get directions');
+    }
+  };
+
+  const handleSOS = () => {
+    if (!userLocation) {
+      toast.error('Location not available');
+      return;
+    }
+
+    // Share location with emergency contacts
+    const locationUrl = `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}`;
+    const message = `🆘 EMERGENCY! I need help. My current location: ${locationUrl}`;
+    
+    toast.success('SOS Alert sent!', {
+      description: 'Emergency services have been notified',
+      duration: 5000,
+    });
+
+    // In a real app, this would send SMS/notifications to emergency contacts
+    console.log('SOS triggered:', message);
+
+    // Show nearby services
+    if (nearbyServices.length > 0) {
+      const policeStation = nearbyServices.find(s => s.type === 'police');
+      if (policeStation) {
+        toast.info(`Nearest Police: ${policeStation.name} - ${policeStation.distance}`, {
+          duration: 8000,
+        });
+      }
+    }
   };
 
   const handleReportIncident = () => {
     toast.info("Incident reporting feature coming soon!");
   };
 
-  // Mock data
-  const weatherData = {
-    location: "Mumbai, Maharashtra",
-    temperature: 28,
-    condition: "Partly Cloudy",
-    humidity: 75,
-    windSpeed: 12,
-    forecast: [
-      { day: "Mon", temp: 28, condition: "Sunny" },
-      { day: "Tue", temp: 29, condition: "Sunny" },
-      { day: "Wed", temp: 27, condition: "Cloudy" },
-      { day: "Thu", temp: 26, condition: "Rain" },
-      { day: "Fri", temp: 27, condition: "Cloudy" },
-      { day: "Sat", temp: 28, condition: "Sunny" },
-      { day: "Sun", temp: 29, condition: "Sunny" }
-    ]
-  };
-
-  const attractions = [
+  // Display attractions from search or default ones
+  const displayAttractions = searchResults.length > 0 ? searchResults : [
     {
       id: "1",
       name: "Solang Valley",
       location: "Manali, Himachal Pradesh",
-      image: manaliImg,
-      description: "Beautiful valley known for adventure sports and scenic beauty. Perfect for skiing and paragliding.",
+      photoUrl: manaliImg,
+      description: "Beautiful valley known for adventure sports and scenic beauty.",
       entryFee: 500,
       timing: "6 AM - 6 PM",
       bestSeason: "Oct - Mar",
-      requiredSafetyScore: 70
+      requiredSafetyScore: 70,
+      coordinates: { lat: 32.3194, lng: 77.1570 },
+      website: "https://himachaltourism.gov.in/"
     },
     {
       id: "2",
       name: "Baga Beach",
       location: "Goa",
-      image: goaImg,
-      description: "Popular beach destination with water sports, beach shacks, and vibrant nightlife.",
+      photoUrl: goaImg,
+      description: "Popular beach destination with water sports and nightlife.",
       entryFee: 0,
       timing: "Open 24/7",
       bestSeason: "Nov - Feb",
-      requiredSafetyScore: 60
+      requiredSafetyScore: 60,
+      coordinates: { lat: 15.5557, lng: 73.7514 },
+      website: "https://www.goatourism.gov.in/"
     },
     {
       id: "3",
       name: "Hawa Mahal",
       location: "Jaipur, Rajasthan",
-      image: jaipurImg,
-      description: "Iconic pink sandstone palace with intricate latticework windows. A UNESCO World Heritage site.",
+      photoUrl: jaipurImg,
+      description: "Iconic pink sandstone palace with intricate latticework windows.",
       entryFee: 200,
       timing: "9 AM - 5 PM",
       bestSeason: "Oct - Mar",
-      requiredSafetyScore: 50
+      requiredSafetyScore: 50,
+      coordinates: { lat: 26.9239, lng: 75.8267 },
+      website: "https://tourism.rajasthan.gov.in/"
     },
     {
       id: "4",
       name: "Alleppey Backwaters",
       location: "Kerala",
-      image: keralaImg,
-      description: "Serene backwater network with houseboat cruises through lush tropical landscapes.",
+      photoUrl: keralaImg,
+      description: "Serene backwater network with houseboat cruises.",
       entryFee: 1500,
       timing: "24 hours",
       bestSeason: "Sep - Mar",
-      requiredSafetyScore: 65
-    }
-  ];
-
-  const incidents = [
-    {
-      id: "1",
-      type: "warning" as const,
-      title: "Heavy Rainfall Alert",
-      location: "Manali, HP",
-      description: "Expect heavy rainfall in the next 24 hours. Road conditions may be affected.",
-      time: "2 hours ago"
-    },
-    {
-      id: "2",
-      type: "danger" as const,
-      title: "Landslide Warning",
-      location: "Rohtang Pass",
-      description: "Road temporarily closed due to landslide risk. Alternative routes available.",
-      time: "4 hours ago"
-    },
-    {
-      id: "3",
-      type: "info" as const,
-      title: "Traffic Update",
-      location: "Delhi NCR",
-      description: "Heavy traffic reported on NH-48. Consider alternative routes.",
-      time: "1 hour ago"
-    }
-  ];
-
-  const emergencyServices = [
-    {
-      id: "1",
-      name: "City Police Station",
-      type: "police" as const,
-      phone: "100",
-      distance: "1.2 km"
-    },
-    {
-      id: "2",
-      name: "District Hospital",
-      type: "hospital" as const,
-      phone: "108",
-      distance: "2.5 km"
-    },
-    {
-      id: "3",
-      name: "Fire Station",
-      type: "fire" as const,
-      phone: "101",
-      distance: "1.8 km"
+      requiredSafetyScore: 65,
+      coordinates: { lat: 9.4981, lng: 76.3388 },
+      website: "https://www.keralatourism.org/"
     }
   ];
 
@@ -195,7 +309,7 @@ const Dashboard = () => {
         <DigitalIDCard user={user} />
 
         {/* Current Location & Weather */}
-        <WeatherCard weather={weatherData} />
+        {weatherData && <WeatherCard weather={weatherData} />}
 
         {/* Search Section */}
         <LocationSearch onSearch={handleSearch} />
@@ -206,12 +320,16 @@ const Dashboard = () => {
             {selectedLocation ? `Attractions in ${selectedLocation}` : "Popular Destinations"}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {attractions.map((attraction) => (
-              <TouristAttractionCard
-                key={attraction.id}
-                attraction={attraction}
-                userSafetyScore={user.safetyScore}
-              />
+            {displayAttractions.map((attraction) => (
+              <div key={attraction.id} onClick={() => handlePlaceClick(attraction)} className="cursor-pointer">
+                <TouristAttractionCard
+                  attraction={{
+                    ...attraction,
+                    image: attraction.photoUrl || attraction.image,
+                  }}
+                  userSafetyScore={user.safetyScore}
+                />
+              </div>
             ))}
           </div>
         </section>
@@ -222,9 +340,29 @@ const Dashboard = () => {
             incidents={incidents} 
             onReportIncident={handleReportIncident}
           />
-          <EmergencyContacts services={emergencyServices} />
+          <EmergencyContacts 
+            services={nearbyServices.map(s => ({
+              id: s.id,
+              name: s.name,
+              type: s.type,
+              phone: s.phone || '100',
+              distance: s.distance,
+            }))} 
+            onSOS={handleSOS}
+          />
         </div>
       </main>
+
+      {/* Location Detail Modal */}
+      <LocationDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        location={selectedPlace}
+        weather={placeWeather}
+        incidents={placeIncidents}
+        onGetDirections={handleGetDirections}
+        onSOS={handleSOS}
+      />
 
       {/* Footer */}
       <footer className="border-t border-border mt-16">
