@@ -12,16 +12,19 @@ interface Attraction {
   entryFee: number;
   timing: string;
   bestSeason: string;
-  requiredSafetyScore: number;
+  safetyScore?: number;
 }
 
 interface TouristAttractionCardProps {
   attraction: Attraction;
-  userSafetyScore: number;
 }
 
-const TouristAttractionCard = ({ attraction, userSafetyScore }: TouristAttractionCardProps) => {
-  const canBuyPass = userSafetyScore >= attraction.requiredSafetyScore;
+const TouristAttractionCard = ({ attraction }: TouristAttractionCardProps) => {
+  const getSafetyColor = (score: number) => {
+    if (score >= 90) return "success";
+    if (score >= 75) return "warning";
+    return "danger";
+  };
 
   return (
     <Card className="overflow-hidden shadow-lg hover:shadow-elevated transition-all hover:-translate-y-1">
@@ -31,11 +34,14 @@ const TouristAttractionCard = ({ attraction, userSafetyScore }: TouristAttractio
           alt={attraction.name}
           className="w-full h-full object-cover"
         />
-        <div className="absolute top-3 right-3">
-          <Badge variant={canBuyPass ? "default" : "destructive"} className="shadow-md">
-            {canBuyPass ? "Eligible" : "Not Eligible"}
-          </Badge>
-        </div>
+        {attraction.safetyScore && (
+          <div className="absolute top-3 right-3">
+            <Badge variant={getSafetyColor(attraction.safetyScore)} className="shadow-md flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              Safety: {attraction.safetyScore}%
+            </Badge>
+          </div>
+        )}
       </div>
       
       <CardContent className="p-4 space-y-3">
@@ -58,30 +64,15 @@ const TouristAttractionCard = ({ attraction, userSafetyScore }: TouristAttractio
             <Calendar className="w-3 h-3 text-muted-foreground" />
             <span>{attraction.bestSeason}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 col-span-2">
             <IndianRupee className="w-3 h-3 text-muted-foreground" />
-            <span>₹{attraction.entryFee}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Shield className="w-3 h-3 text-muted-foreground" />
-            <span>Score: {attraction.requiredSafetyScore}+</span>
+            <span>Entry Fee: ₹{attraction.entryFee}</span>
           </div>
         </div>
 
-        {canBuyPass ? (
-          <Button variant="success" className="w-full">
-            Buy Tourist Pass
-          </Button>
-        ) : (
-          <div className="space-y-2">
-            <Button variant="outline" className="w-full" disabled>
-              Pass Unavailable
-            </Button>
-            <p className="text-xs text-danger text-center">
-              Safety score too low. Required: {attraction.requiredSafetyScore}, Your score: {userSafetyScore}
-            </p>
-          </div>
-        )}
+        <Button variant="default" className="w-full">
+          View Details
+        </Button>
       </CardContent>
     </Card>
   );

@@ -8,6 +8,7 @@ import TouristAttractionCard from "@/components/TouristAttractionCard";
 import IncidentAlert from "@/components/IncidentAlert";
 import EmergencyContacts from "@/components/EmergencyContacts";
 import LocationDetailModal from "@/components/LocationDetailModal";
+import TravelChatbot from "@/components/TravelChatbot";
 import { LogOut, Menu } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +22,7 @@ import keralaImg from "@/assets/kerala.jpg";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [weatherData, setWeatherData] = useState<any>(null);
@@ -34,12 +35,26 @@ const Dashboard = () => {
   const [nearbyServices, setNearbyServices] = useState<any[]>([]);
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (!userData) {
-      navigate("/");
-      return;
-    }
-    setUser(JSON.parse(userData));
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/");
+        return;
+      }
+
+      // Fetch profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileData) {
+        setProfile(profileData);
+      }
+    };
+
+    checkAuth();
 
     // Get user's current location
     if (navigator.geolocation) {
@@ -98,8 +113,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     toast.success("Logged out successfully");
     navigate("/");
   };
@@ -158,32 +173,19 @@ const Dashboard = () => {
     }
   };
 
-  const handleGetDirections = async () => {
+  const handleGetDirections = () => {
     if (!userLocation || !selectedPlace) {
       toast.error('Location not available');
       return;
     }
 
-    try {
-      const origin = `${userLocation.lat},${userLocation.lng}`;
-      const destination = `${selectedPlace.coordinates.lat},${selectedPlace.coordinates.lng}`;
-
-      const { data, error } = await supabase.functions.invoke('get-directions', {
-        body: { origin, destination },
-      });
-
-      if (error) throw error;
-
-      const bestRoute = data.routes[0];
-      toast.success(`Best route: ${bestRoute.summary} - ${bestRoute.distance}, ${bestRoute.duration}`);
-      
-      // Open in Google Maps
-      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
-      window.open(mapsUrl, '_blank');
-    } catch (error) {
-      console.error('Error getting directions:', error);
-      toast.error('Failed to get directions');
-    }
+    const origin = `${userLocation.lat},${userLocation.lng}`;
+    const destination = `${selectedPlace.coordinates.lat},${selectedPlace.coordinates.lng}`;
+    
+    // Open directly in Google Maps
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+    window.open(mapsUrl, '_blank');
+    toast.success('Opening directions in Google Maps...');
   };
 
   const handleSOS = () => {
@@ -230,7 +232,7 @@ const Dashboard = () => {
       entryFee: 500,
       timing: "6 AM - 6 PM",
       bestSeason: "Oct - Mar",
-      requiredSafetyScore: 70,
+      safetyScore: 85,
       coordinates: { lat: 32.3194, lng: 77.1570 },
       website: "https://himachaltourism.gov.in/"
     },
@@ -243,7 +245,7 @@ const Dashboard = () => {
       entryFee: 0,
       timing: "Open 24/7",
       bestSeason: "Nov - Feb",
-      requiredSafetyScore: 60,
+      safetyScore: 90,
       coordinates: { lat: 15.5557, lng: 73.7514 },
       website: "https://www.goatourism.gov.in/"
     },
@@ -256,7 +258,7 @@ const Dashboard = () => {
       entryFee: 200,
       timing: "9 AM - 5 PM",
       bestSeason: "Oct - Mar",
-      requiredSafetyScore: 50,
+      safetyScore: 95,
       coordinates: { lat: 26.9239, lng: 75.8267 },
       website: "https://tourism.rajasthan.gov.in/"
     },
@@ -269,13 +271,13 @@ const Dashboard = () => {
       entryFee: 1500,
       timing: "24 hours",
       bestSeason: "Sep - Mar",
-      requiredSafetyScore: 65,
+      safetyScore: 88,
       coordinates: { lat: 9.4981, lng: 76.3388 },
       website: "https://www.keralatourism.org/"
     }
   ];
 
-  if (!user) return null;
+  if (!profile) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -301,12 +303,12 @@ const Dashboard = () => {
       <main className="container mx-auto px-4 py-8 space-y-8">
         {/* Welcome Section */}
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold">Welcome back, {user.name}!</h2>
+          <h2 className="text-3xl font-bold">Welcome back, {profile.full_name}!</h2>
           <p className="text-muted-foreground">Explore India safely with real-time updates</p>
         </div>
 
         {/* Digital ID Section */}
-        <DigitalIDCard user={user} />
+        <DigitalIDCard />
 
         {/* Current Location & Weather */}
         {weatherData && <WeatherCard weather={weatherData} />}
@@ -327,7 +329,6 @@ const Dashboard = () => {
                     ...attraction,
                     image: attraction.photoUrl || attraction.image,
                   }}
-                  userSafetyScore={user.safetyScore}
                 />
               </div>
             ))}

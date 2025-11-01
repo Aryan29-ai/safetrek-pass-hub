@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,45 +7,101 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import heroBanner from "@/assets/hero-banner.jpg";
 import { MapPin, Shield, Users } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Login fields
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  
+  // Signup fields
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [address, setAddress] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
+
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/dashboard");
+      }
+    });
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock login - in production, this would call your backend
-    setTimeout(() => {
-      localStorage.setItem("user", JSON.stringify({
-        id: "1",
-        name: "Rahul Sharma",
-        email: "rahul.sharma@example.com",
-        phone: "+91 98765 43210",
-        aadhaar: "XXXX-XXXX-1234",
-        dob: "15/03/1990",
-        safetyScore: 85
-      }));
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (error) throw error;
+      toast.success("Logged in successfully!");
       navigate("/dashboard");
-    }, 1000);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast.error(error.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock signup
-    setTimeout(() => {
-      localStorage.setItem("user", JSON.stringify({
-        id: "1",
-        name: "Rahul Sharma",
-        email: "rahul.sharma@example.com",
-        phone: "+91 98765 43210",
-        aadhaar: "XXXX-XXXX-1234",
-        dob: "15/03/1990",
-        safetyScore: 75
-      }));
-      navigate("/dashboard");
-    }, 1000);
+
+    try {
+      // Sign up
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (authData.user) {
+        // Create profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            full_name: fullName,
+            email,
+            phone,
+            date_of_birth: dateOfBirth || null,
+            address,
+            emergency_contact_name: emergencyContactName,
+            emergency_contact_phone: emergencyContactPhone,
+            blood_group: bloodGroup,
+          });
+
+        if (profileError) throw profileError;
+
+        toast.success("Account created successfully!");
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast.error(error.message || 'Signup failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -96,21 +152,26 @@ const Auth = () => {
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <Input 
-                      id="email" 
+                      id="login-email" 
                       type="email" 
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
                       placeholder="your.email@example.com"
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="login-password">Password</Label>
                     <Input 
-                      id="password" 
+                      id="login-password" 
                       type="password" 
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="••••••••"
                       required 
+                      minLength={6}
                     />
                   </div>
                   <Button 
@@ -127,19 +188,23 @@ const Auth = () => {
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Label htmlFor="signup-name">Full Name *</Label>
                     <Input 
                       id="signup-name" 
                       type="text" 
-                      placeholder="Rahul Sharma"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Enter your full name"
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-email">Email *</Label>
                     <Input 
                       id="signup-email" 
                       type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="your.email@example.com"
                       required 
                     />
@@ -149,17 +214,79 @@ const Auth = () => {
                     <Input 
                       id="signup-phone" 
                       type="tel" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                       placeholder="+91 98765 43210"
-                      required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-dob">Date of Birth</Label>
+                    <Input 
+                      id="signup-dob" 
+                      type="date" 
+                      value={dateOfBirth}
+                      onChange={(e) => setDateOfBirth(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-address">Address</Label>
+                    <Input 
+                      id="signup-address" 
+                      type="text" 
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Enter your address"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-blood">Blood Group</Label>
+                    <select
+                      id="signup-blood"
+                      value={bloodGroup}
+                      onChange={(e) => setBloodGroup(e.target.value)}
+                      className="w-full p-2 border border-input rounded-md bg-background"
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-emergency-name">Emergency Contact Name</Label>
+                    <Input 
+                      id="signup-emergency-name" 
+                      type="text" 
+                      value={emergencyContactName}
+                      onChange={(e) => setEmergencyContactName(e.target.value)}
+                      placeholder="Enter emergency contact name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-emergency-phone">Emergency Contact Phone</Label>
+                    <Input 
+                      id="signup-emergency-phone" 
+                      type="tel" 
+                      value={emergencyContactPhone}
+                      onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                      placeholder="Enter emergency contact phone"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password *</Label>
                     <Input 
                       id="signup-password" 
                       type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
                       required 
+                      minLength={6}
                     />
                   </div>
                   <Button 

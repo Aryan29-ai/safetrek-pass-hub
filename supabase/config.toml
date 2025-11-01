@@ -12,5 +12,8 @@ verify_jwt = false
 [functions.nearby-services]
 verify_jwt = false
 
+[functions.ai-travel-chat]
+verify_jwt = false
+
 [functions.get-incidents]
 verify_jwt = false
