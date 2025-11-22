@@ -80,6 +80,28 @@ const LocationDetailModal = ({
                 </div>
               )}
 
+              {(location as any).highlights && (location as any).highlights.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Highlights</h4>
+                  <ul className="text-sm space-y-1 list-disc list-inside">
+                    {(location as any).highlights.map((highlight: string, idx: number) => (
+                      <li key={idx}>{highlight}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(location as any).tips && (location as any).tips.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold">Travel Tips</h4>
+                  <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+                    {(location as any).tips.map((tip: string, idx: number) => (
+                      <li key={idx}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {location.phone && (
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="w-4 h-4 text-muted-foreground" />
