@@ -130,7 +130,38 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      setSearchResults(data.places || []);
+      // Enhance each place with AI-generated details
+      const enhancedPlaces = await Promise.all(
+        (data.places || []).map(async (place: any) => {
+          try {
+            const { data: details } = await supabase.functions.invoke('enhance-place-details', {
+              body: { placeName: place.name, location: place.location }
+            });
+            
+            return {
+              ...place,
+              description: details?.description || place.description,
+              entryFee: details?.entryFee ?? 0,
+              timing: details?.timing || 'Check local timings',
+              bestSeason: details?.bestSeason || 'Year-round',
+              highlights: details?.highlights || [],
+              tips: details?.tips || [],
+            };
+          } catch (err) {
+            console.error('Error enhancing place:', err);
+            return {
+              ...place,
+              entryFee: 0,
+              timing: 'Check local timings',
+              bestSeason: 'Year-round',
+              highlights: [],
+              tips: [],
+            };
+          }
+        })
+      );
+
+      setSearchResults(enhancedPlaces);
       
       // Fetch incidents for this location
       const { data: incidentData } = await supabase.functions.invoke('get-incidents', {
@@ -141,7 +172,7 @@ const Dashboard = () => {
         setIncidents(incidentData.incidents);
       }
 
-      toast.success(`Found ${data.places?.length || 0} attractions`);
+      toast.success(`Found ${enhancedPlaces.length} attractions`);
     } catch (error) {
       console.error('Error searching:', error);
       toast.error('Failed to search locations');
@@ -371,6 +402,9 @@ const Dashboard = () => {
           <p>&copy; 2025 Bharat SafeTourism. Travel Safe, Travel Smart.</p>
         </div>
       </footer>
+
+      {/* AI Travel Chatbot */}
+      <TravelChatbot />
     </div>
   );
 };

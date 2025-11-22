@@ -15,5 +15,8 @@ verify_jwt = false
 [functions.ai-travel-chat]
 verify_jwt = false
 
+[functions.enhance-place-details]
+verify_jwt = false
+
 [functions.get-incidents]
 verify_jwt = false
